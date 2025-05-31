@@ -1,87 +1,113 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>3D Chemical Structures with Three.js</title>
+    <title>Interactive 3D Chemical Viewer with Labels</title>
     <meta charset="UTF-8">
     <style>
-        body { 
-            margin: 0; 
-            font-family: Arial, sans-serif; 
-            background-color: #f4f4f4; 
-        }
-        #page-container { 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            padding: 20px; 
-        }
-        #viewers-container { 
-            display: flex; 
-            flex-wrap: wrap; 
-            justify-content: center; 
-            width: 95%; 
-            max-width: 1200px; 
-            gap: 20px;
-        }
+        /* ... (CSS is the same as the previous version with Newman views) ... */
+        body { margin: 0; font-family: Arial, sans-serif; background-color: #f4f4f4; }
+        #page-container { display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        #viewers-container { display: flex; flex-wrap: wrap; justify-content: center; width: 95%; max-width: 1200px; gap: 20px;}
         .molecule-viewer {
-            width: 500px;
-            height: 500px;
-            border: 1px solid #ccc;
-            background-color: #ffffff;
-            display: flex;
-            flex-direction: column;
+            width: 550px; height: 600px; border: 1px solid #ccc; background-color: #ffffff;
+            display: flex; flex-direction: column; margin-bottom: 20px;
         }
-        .viewer-title {
-            text-align: center;
-            font-weight: bold;
-            padding: 8px;
-            background-color: #e9e9e9;
-            border-bottom: 1px solid #ccc;
-        }
-        .canvas-wrapper {
-            flex-grow: 1;
-            position: relative;
-            overflow: hidden;
-        }
-        canvas { 
-            display: block; 
-            width: 100%;
-            height: 100%;
-        }
+        .viewer-title { text-align: center; font-weight: bold; padding: 8px; background-color: #e9e9e9; border-bottom: 1px solid #ccc;}
+        .canvas-wrapper { flex-grow: 1; position: relative; overflow: hidden; }
+        .view-controls { padding: 10px; text-align: center; border-top: 1px solid #ccc; background-color: #f9f9f9;}
+        .view-controls button { margin: 0 5px; padding: 5px 10px; cursor: pointer; }
+        canvas { display: block; width: 100%; height: 100%;}
     </style>
-    <!-- Three.js library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- OrbitControls for mouse interaction -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
 </head>
 <body>
+    <!-- ... (HTML structure is the same as the previous version) ... -->
     <div id="page-container">
-        <h1>3D Chemical Structure Viewer (Three.js)</h1>
+        <h1>Interactive 3D Chemical Viewer (with C# Labels)</h1>
         <div id="viewers-container">
             <div class="molecule-viewer">
                 <div class="viewer-title">Molecule 1: Substituted Cyclohexane (Chair)</div>
                 <div class="canvas-wrapper" id="viewer1_canvas_container"></div>
+                <div class="view-controls">
+                    <button onclick="resetView('viewer1')">Default 3D View</button>
+                </div>
             </div>
             <div class="molecule-viewer">
                 <div class="viewer-title">Molecule 2: Tetramethyl-bis(methylidene)cyclohexane</div>
                 <div class="canvas-wrapper" id="viewer2_canvas_container"></div>
+                <div class="view-controls">
+                    <button onclick="resetView('viewer2')">Default 3D View</button>
+                    <button onclick="setNewmanView('viewer2', 'c1', 'c4')">Newman (C1-C4)</button>
+                    <button onclick="setNewmanView('viewer2', 'c2', 'c3')">Newman (C2-C3)</button>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
+        console.log("Script execution started.");
+
         // --- Configuration ---
         const ATOM_RADIUS = { 'C': 0.35, 'H': 0.20, 'DEFAULT': 0.3 };
-        const ATOM_COLORS = {
-            'C': 0x282828, // Dark Grey
-            'H': 0xE0E0E0, // Light Grey
-        };
+        const ATOM_COLORS = { 'C': 0x282828, 'H': 0xE0E0E0 };
         const BOND_RADIUS_SINGLE = 0.07;
         const BOND_RADIUS_DOUBLE = 0.11;
         const BOND_COLOR = 0x505050;
+        const LABEL_TEXT_COLOR = 'blue';
+        const LABEL_OFFSET = 0.5; // How far the label is from the atom center
+        const LABEL_SCALE = 0.6;  // Scale of the label sprite
+
+        // --- Molecule Definitions (Using the complete ones from previous response) ---
+        // MOLECULE 1 DEFINITIONS (Insert complete 'molecule1_atoms' and 'molecule1_bonds' here)
+        const molecule1_atoms = [ /* ... PASTE COMPLETE molecule1_atoms from previous response ... */
+            { id: 'c1', el: 'C', pos: new THREE.Vector3( 1.25,  0.00,  0.41), label: '1' }, { id: 'c2', el: 'C', pos: new THREE.Vector3( 0.62,  1.08, -0.41), label: '2' },
+            { id: 'c3', el: 'C', pos: new THREE.Vector3(-0.62,  1.08,  0.41), label: '3' }, { id: 'c4', el: 'C', pos: new THREE.Vector3(-1.25,  0.00, -0.41), label: '4' },
+            { id: 'c5', el: 'C', pos: new THREE.Vector3(-0.62, -1.08,  0.41), label: '5' }, { id: 'c6', el: 'C', pos: new THREE.Vector3( 0.62, -1.08, -0.41), label: '6' },
+            { id: 'h1e', el: 'H', pos: new THREE.Vector3( 1.85,  0.00,  1.11) }, { id: 'me1c',el: 'C', pos: new THREE.Vector3( 1.25,  0.00, -1.10) },
+            { id: 'me1h1', el: 'H', pos: new THREE.Vector3( 1.25 + 0.4, 0.00 + 0.4, -1.10 - 0.2) },{ id: 'me1h2', el: 'H', pos: new THREE.Vector3( 1.25 - 0.4, 0.00 + 0.4, -1.10 - 0.2) },{ id: 'me1h3', el: 'H', pos: new THREE.Vector3( 1.25, 0.00 - 0.5, -1.10 - 0.2) },
+            { id: 'me2c',el: 'C', pos: new THREE.Vector3( 0.62,  1.88, -1.11) },{ id: 'me2h1', el: 'H', pos: new THREE.Vector3( 0.62 + 0.4, 1.88 + 0.4, -1.11 + 0.2) },{ id: 'me2h2', el: 'H', pos: new THREE.Vector3( 0.62 - 0.4, 1.88 + 0.4, -1.11 + 0.2) },{ id: 'me2h3', el: 'H', pos: new THREE.Vector3( 0.62, 1.88 - 0.5, -1.11 + 0.2) }, { id: 'h2e', el: 'H', pos: new THREE.Vector3( 0.92,  1.28,  0.49) },
+            { id: 'me3c',el: 'C', pos: new THREE.Vector3(-0.62,  1.08, -1.10) },{ id: 'me3h1', el: 'H', pos: new THREE.Vector3(-0.62 + 0.4, 1.08 + 0.4, -1.10 - 0.2) },{ id: 'me3h2', el: 'H', pos: new THREE.Vector3(-0.62 - 0.4, 1.08 + 0.4, -1.10 - 0.2) },{ id: 'me3h3', el: 'H', pos: new THREE.Vector3(-0.62, 1.08 - 0.5, -1.10 - 0.2) }, { id: 'h3e', el: 'H', pos: new THREE.Vector3(-0.92,  1.28,  1.31) },
+            { id: 'h4e', el: 'H', pos: new THREE.Vector3(-1.85,  0.00, -1.11) }, { id: 'me4c',el: 'C', pos: new THREE.Vector3(-1.25,  0.00,  1.10) },{ id: 'me4h1', el: 'H', pos: new THREE.Vector3(-1.25 + 0.4, 0.00 + 0.4,  1.10 + 0.2) },{ id: 'me4h2', el: 'H', pos: new THREE.Vector3(-1.25 - 0.4, 0.00 + 0.4,  1.10 + 0.2) },{ id: 'me4h3', el: 'H', pos: new THREE.Vector3(-1.25, 0.00 - 0.5,  1.10 + 0.2) },
+            { id: 'me5c',el: 'C', pos: new THREE.Vector3(-0.62, -1.88,  1.11) },{ id: 'me5h1', el: 'H', pos: new THREE.Vector3(-0.62 + 0.4, -1.88 - 0.4,  1.11 - 0.2) },{ id: 'me5h2', el: 'H', pos: new THREE.Vector3(-0.62 - 0.4, -1.88 - 0.4,  1.11 - 0.2) },{ id: 'me5h3', el: 'H', pos: new THREE.Vector3(-0.62, -1.88 + 0.5,  1.11 - 0.2) }, { id: 'h5e', el: 'H', pos: new THREE.Vector3(-0.92, -1.28, -0.49) },
+            { id: 'me6c_prev',el: 'C', pos: new THREE.Vector3( 0.62, -1.08,  1.10)},{ id: 'me6h1', el: 'H', pos: new THREE.Vector3(0.62 + 0.4, -1.08 + 0.4,  1.10 + 0.2) },{ id: 'me6h2', el: 'H', pos: new THREE.Vector3(0.62 - 0.4, -1.08 + 0.4,  1.10 + 0.2) },{ id: 'me6h3', el: 'H', pos: new THREE.Vector3(0.62, -1.08 - 0.5,  1.10 + 0.2) }, { id: 'h6e', el: 'H', pos: new THREE.Vector3( 0.92, -1.28, -1.31) },
+        ];
+        const molecule1_bonds = [ /* ... PASTE COMPLETE molecule1_bonds from previous response ... */
+            ['c1','c2',1], ['c2','c3',1], ['c3','c4',1], ['c4','c5',1], ['c5','c6',1], ['c6','c1',1],
+            ['c1','h1e',1], ['c1','me1c',1],['me1c','me1h1',1], ['me1c','me1h2',1], ['me1c','me1h3',1],
+            ['c2','me2c',1], ['c2','h2e',1],['me2c','me2h1',1], ['me2c','me2h2',1], ['me2c','me2h3',1],
+            ['c3','me3c',1], ['c3','h3e',1],['me3c','me3h1',1], ['me3c','me3h2',1], ['me3c','me3h3',1],
+            ['c4','h4e',1], ['c4','me4c',1],['me4c','me4h1',1], ['me4c','me4h2',1], ['me4c','me4h3',1],
+            ['c5','me5c',1], ['c5','h5e',1],['me5c','me5h1',1], ['me5c','me5h2',1], ['me5c','me5h3',1],
+            ['c6','me6c_prev',1], ['c6','h6e',1],['me6c_prev','me6h1',1], ['me6c_prev','me6h2',1], ['me6c_prev','me6h3',1],
+        ];
+
+        // MOLECULE 2 DEFINITIONS
+        const molecule2_atoms = [ /* ... PASTE COMPLETE molecule2_atoms from previous response, ADD 'label' property to ring carbons ... */
+            { id: 'c1', el: 'C', pos: new THREE.Vector3( 1.25,  0.00,  0.41), label: '1' }, { id: 'c2', el: 'C', pos: new THREE.Vector3( 0.62,  1.08, -0.41), label: '2' },
+            { id: 'c3', el: 'C', pos: new THREE.Vector3(-0.62,  1.08,  0.41), label: '3' }, { id: 'c4', el: 'C', pos: new THREE.Vector3(-1.25,  0.00, -0.41), label: '4' },
+            { id: 'c5', el: 'C', pos: new THREE.Vector3(-0.62, -1.08,  0.41), label: '5' }, { id: 'c6', el: 'C', pos: new THREE.Vector3( 0.62, -1.08, -0.41), label: '6' },
+            { id: 'c1exo_c', el: 'C', pos: new THREE.Vector3( 2.40,  0.00,  0.80) }, { id: 'c1exo_h1',el: 'H', pos: new THREE.Vector3( 2.80,  0.87,  1.10) },{ id: 'c1exo_h2',el: 'H', pos: new THREE.Vector3( 2.80, -0.87,  1.10) },
+            { id: 'c4exo_c', el: 'C', pos: new THREE.Vector3(-2.40,  0.00, -0.80) },{ id: 'c4exo_h1',el: 'H', pos: new THREE.Vector3(-2.80,  0.87, -1.10) },{ id: 'c4exo_h2',el: 'H', pos: new THREE.Vector3(-2.80, -0.87, -1.10) },
+            { id: 'me2c', el: 'C', pos: new THREE.Vector3( 1.02,  1.68, -1.31) },{ id: 'me2h1',el: 'H', pos: new THREE.Vector3( 1.02 + 0.4, 1.68 + 0.4, -1.31 - 0.2) },{ id: 'me2h2',el: 'H', pos: new THREE.Vector3( 1.02 - 0.4, 1.68 + 0.4, -1.31 - 0.2) },{ id: 'me2h3',el: 'H', pos: new THREE.Vector3( 1.02, 1.68 - 0.5, -1.31 - 0.2) }, { id: 'h2a', el: 'H', pos: new THREE.Vector3( 0.62,  1.88,  0.29) },
+            { id: 'me3c', el: 'C', pos: new THREE.Vector3(-1.02,  1.68,  1.31) },{ id: 'me3h1',el: 'H', pos: new THREE.Vector3(-1.02 + 0.4, 1.68 + 0.4,  1.31 + 0.2) },{ id: 'me3h2',el: 'H', pos: new THREE.Vector3(-1.02 - 0.4, 1.68 + 0.4,  1.31 + 0.2) },{ id: 'me3h3',el: 'H', pos: new THREE.Vector3(-1.02, 1.68 - 0.5,  1.31 + 0.2) }, { id: 'h3a', el: 'H', pos: new THREE.Vector3(-0.62,  1.88, -0.29) },
+            { id: 'me5c', el: 'C', pos: new THREE.Vector3(-1.02, -1.68, -1.31) },{ id: 'me5h1',el: 'H', pos: new THREE.Vector3(-1.02 + 0.4, -1.68 - 0.4, -1.31 - 0.2) },{ id: 'me5h2',el: 'H', pos: new THREE.Vector3(-1.02 - 0.4, -1.68 - 0.4, -1.31 - 0.2) },{ id: 'me5h3',el: 'H', pos: new THREE.Vector3(-1.02, -1.68 + 0.5, -1.31 - 0.2) }, { id: 'h5a', el: 'H', pos: new THREE.Vector3(-0.62, -1.88,  0.29) },
+            { id: 'me6c', el: 'C', pos: new THREE.Vector3( 1.02, -1.68,  1.31) },{ id: 'me6h1',el: 'H', pos: new THREE.Vector3( 1.02 + 0.4, -1.68 - 0.4,  1.31 + 0.2) },{ id: 'me6h2',el: 'H', pos: new THREE.Vector3( 1.02 - 0.4, -1.68 - 0.4,  1.31 + 0.2) },{ id: 'me6h3',el: 'H', pos: new THREE.Vector3( 1.02, -1.68 + 0.5,  1.31 + 0.2) }, { id: 'h6a', el: 'H', pos: new THREE.Vector3( 0.62, -1.88, -0.29) },
+        ];
+        const molecule2_bonds = [ /* ... PASTE COMPLETE molecule2_bonds from previous response ... */
+            ['c1','c2',1], ['c2','c3',1], ['c3','c4',1], ['c4','c5',1], ['c5','c6',1], ['c6','c1',1],
+            ['c1','c1exo_c',2], ['c1exo_c','c1exo_h1',1], ['c1exo_c','c1exo_h2',1],
+            ['c4','c4exo_c',2], ['c4exo_c','c4exo_h1',1], ['c4exo_c','c4exo_h2',1],
+            ['c2','me2c',1], ['c2','h2a',1], ['me2c','me2h1',1], ['me2c','me2h2',1], ['me2c','me2h3',1],
+            ['c3','me3c',1], ['c3','h3a',1], ['me3c','me3h1',1], ['me3c','me3h2',1], ['me3c','me3h3',1],
+            ['c5','me5c',1], ['c5','h5a',1], ['me5c','me5h1',1], ['me5c','me5h2',1], ['me5c','me5h3',1],
+            ['c6','me6c',1], ['c6','h6a',1], ['me6c','me6h1',1], ['me6c','me6h2',1], ['me6c','me6h3',1],
+        ];
+
 
         // --- Helper Functions ---
-        function createAtomMesh(element, position) {
+        function createAtomMesh(element, position) { /* ... (same) ... */
             const radius = ATOM_RADIUS[element] || ATOM_RADIUS['DEFAULT'];
             const color = ATOM_COLORS[element] || 0x999999;
             const geometry = new THREE.SphereGeometry(radius, 16, 16);
@@ -90,213 +116,156 @@
             sphere.position.set(position.x, position.y, position.z);
             return sphere;
         }
-
-        function createBondMesh(pos1, pos2, order = 1) {
+        function createBondMesh(pos1, pos2, order = 1) { /* ... (same) ... */
             const group = new THREE.Group();
             const direction = new THREE.Vector3().subVectors(pos2, pos1);
             const distance = direction.length();
-
             if (distance < 0.01) return group;
-
             const bondMaterial = new THREE.MeshPhongMaterial({ color: BOND_COLOR, shininess: 30 });
             const bondRadius = order === 2 ? BOND_RADIUS_DOUBLE : BOND_RADIUS_SINGLE;
-
             const cylinderGeometry = new THREE.CylinderGeometry(bondRadius, bondRadius, distance, 8);
             const cylinder = new THREE.Mesh(cylinderGeometry, bondMaterial);
-
             cylinder.position.copy(pos1).add(direction.multiplyScalar(0.5));
-            cylinder.quaternion.setFromUnitVectors(
-                new THREE.Vector3(0, 1, 0), 
-                direction.clone().normalize()
-            );
-
+            cylinder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize());
             group.add(cylinder);
             return group;
         }
 
-        // --- Molecule Definitions ---
-        const molecule1_atoms = [
-            // Ring carbons
-            { id: 'c1', el: 'C', pos: new THREE.Vector3(1.25, 0.00, 0.41) },
-            { id: 'c2', el: 'C', pos: new THREE.Vector3(0.62, 1.08, -0.41) },
-            { id: 'c3', el: 'C', pos: new THREE.Vector3(-0.62, 1.08, 0.41) },
-            { id: 'c4', el: 'C', pos: new THREE.Vector3(-1.25, 0.00, -0.41) },
-            { id: 'c5', el: 'C', pos: new THREE.Vector3(-0.62, -1.08, 0.41) },
-            { id: 'c6', el: 'C', pos: new THREE.Vector3(0.62, -1.08, -0.41) },
-            
-            // Substituents
-            { id: 'h1e', el: 'H', pos: new THREE.Vector3(1.85, 0.00, 1.11) },
-            { id: 'me1a', el: 'C', pos: new THREE.Vector3(1.25, 0.00, -1.10) },
-            { id: 'me2a', el: 'C', pos: new THREE.Vector3(0.62, 1.88, -1.11) },
-            { id: 'me3a', el: 'C', pos: new THREE.Vector3(-0.62, 1.88, 1.11) },
-            { id: 'h4e', el: 'H', pos: new THREE.Vector3(-1.85, 0.00, -1.11) },
-            { id: 'me4a', el: 'C', pos: new THREE.Vector3(-1.25, 0.00, 1.10) },
-            { id: 'me5a', el: 'C', pos: new THREE.Vector3(-0.62, -1.88, 1.11) },
-            { id: 'me6a', el: 'C', pos: new THREE.Vector3(0.62, -1.88, -1.11) },
-            
-            // Methyl hydrogens
-            { id: 'me1ah1', el: 'H', pos: new THREE.Vector3(1.75, 0.40, -1.10) },
-            { id: 'me1ah2', el: 'H', pos: new THREE.Vector3(0.85, 0.40, -1.10) },
-            { id: 'me1ah3', el: 'H', pos: new THREE.Vector3(1.25, -0.40, -1.40) }
-        ];
+        // NEW Helper Function to create atom labels
+        function createAtomLabel(text, position) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            const fontSize = 30; // Font size on canvas
+            context.font = `Bold ${fontSize}px Arial`;
+            const textWidth = context.measureText(text).width;
 
-        const molecule1_bonds = [
-            // Ring bonds
-            ['c1','c2',1], ['c2','c3',1], ['c3','c4',1], 
-            ['c4','c5',1], ['c5','c6',1], ['c6','c1',1],
-            
-            // Substituent bonds
-            ['c1','h1e',1], ['c1','me1a',1], 
-            ['c2','me2a',1], ['c3','me3a',1],
-            ['c4','h4e',1], ['c4','me4a',1], 
-            ['c5','me5a',1], ['c6','me6a',1],
-            
-            // Methyl hydrogens
-            ['me1a','me1ah1',1], ['me1a','me1ah2',1], ['me1a','me1ah3',1]
-        ];
+            // Set canvas size based on text
+            canvas.width = textWidth + 10; // Add some padding
+            canvas.height = fontSize + 10;
 
-        const molecule2_atoms = [
-            // Ring carbons
-            { id: 'c1', el: 'C', pos: new THREE.Vector3(1.25, 0.00, 0.41) },
-            { id: 'c2', el: 'C', pos: new THREE.Vector3(0.62, 1.08, -0.41) },
-            { id: 'c3', el: 'C', pos: new THREE.Vector3(-0.62, 1.08, 0.41) },
-            { id: 'c4', el: 'C', pos: new THREE.Vector3(-1.25, 0.00, -0.41) },
-            { id: 'c5', el: 'C', pos: new THREE.Vector3(-0.62, -1.08, 0.41) },
-            { id: 'c6', el: 'C', pos: new THREE.Vector3(0.62, -1.08, -0.41) },
-            
-            // Methylidene groups
-            { id: 'c1exo', el: 'C', pos: new THREE.Vector3(2.45, 0.00, 0.81) },
-            { id: 'h1exo1', el: 'H', pos: new THREE.Vector3(2.95, 0.87, 0.81) },
-            { id: 'h1exo2', el: 'H', pos: new THREE.Vector3(2.95, -0.87, 0.81) },
-            { id: 'c4exo', el: 'C', pos: new THREE.Vector3(-2.45, 0.00, -0.81) },
-            { id: 'h4exo1', el: 'H', pos: new THREE.Vector3(-2.95, 0.87, -0.81) },
-            { id: 'h4exo2', el: 'H', pos: new THREE.Vector3(-2.95, -0.87, -0.81) },
-            
-            // Methyl groups
-            { id: 'me2e', el: 'C', pos: new THREE.Vector3(1.02, 2.08, -0.81) },
-            { id: 'me3e', el: 'C', pos: new THREE.Vector3(-1.02, 2.08, 0.81) },
-            { id: 'me5e', el: 'C', pos: new THREE.Vector3(-1.02, -2.08, 0.81) },
-            { id: 'me6e', el: 'C', pos: new THREE.Vector3(1.02, -2.08, -0.81) }
-        ];
+            // Re-apply font and draw text (canvas size change resets context)
+            context.font = `Bold ${fontSize}px Arial`;
+            context.fillStyle = LABEL_TEXT_COLOR;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(text, canvas.width / 2, canvas.height / 2);
 
-        const molecule2_bonds = [
-            // Ring bonds
-            ['c1','c2',1], ['c2','c3',1], ['c3','c4',1], 
-            ['c4','c5',1], ['c5','c6',1], ['c6','c1',1],
-            
-            // Methylidene bonds
-            ['c1','c1exo',2], ['c1exo','h1exo1',1], ['c1exo','h1exo2',1],
-            ['c4','c4exo',2], ['c4exo','h4exo1',1], ['c4exo','h4exo2',1],
-            
-            // Methyl bonds
-            ['c2','me2e',1], ['c3','me3e',1], 
-            ['c5','me5e',1], ['c6','me6e',1]
-        ];
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false }); // depthTest: false makes it always visible
+            const sprite = new THREE.Sprite(spriteMaterial);
+
+            // Scale and position the sprite
+            sprite.scale.set(LABEL_SCALE * (canvas.width / canvas.height), LABEL_SCALE, 1); // Adjust scale based on aspect ratio
+            sprite.position.copy(position);
+            // Offset the label slightly so it's not inside the atom
+            sprite.position.y += LABEL_OFFSET * 0.8; // Adjust offset as needed
+            sprite.position.x += LABEL_OFFSET * 0.3;
+
+            return sprite;
+        }
+
+
+        // --- Global store for viewers' data ---
+        const viewers = {};
 
         // --- Scene Initialization Function ---
-        function initViewer(containerId, atomData, bondData) {
-            const container = document.getElementById(containerId);
-            if (!container) return;
+        function initViewer(viewerKey, containerId, atomData, bondData) {
+            // ... (Setup renderer, camera, lights, controls - same as before)
+            console.log(`Initializing viewer for: ${containerId} (key: ${viewerKey})`);
+            const canvasWrapper = document.getElementById(containerId);
+            if (!canvasWrapper) { console.error("Canvas wrapper not found:", containerId); return; }
+            while (canvasWrapper.firstChild) { canvasWrapper.removeChild(canvasWrapper.firstChild); }
 
-            // Clear previous canvas if any
-            while (container.firstChild) {
-                container.removeChild(container.firstChild);
-            }
+            const width = canvasWrapper.clientWidth; const height = canvasWrapper.clientHeight;
+            if (width === 0 || height === 0) { console.error(`Container ${containerId} has zero dimensions.`); return;}
 
-            const width = container.clientWidth;
-            const height = container.clientHeight;
-
-            // Create scene
-            const scene = new THREE.Scene();
-            //green bg
-            scene.background = new THREE.Color(0x00ff00);
-
-            // Create camera
+            const scene = new THREE.Scene(); 
+            //Green bg
+            scene.background = new THREE.Color(0x00ff00); // Set background color to green
             const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
-            camera.position.set(0, 0, 8);
-            camera.lookAt(0, 0, 0);
-
-            // Create renderer
+            camera.position.set(0, 0, 8); camera.lookAt(0, 0, 0);
             const renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(width, height);
-            container.appendChild(renderer.domElement);
+            renderer.setSize(width, height); canvasWrapper.appendChild(renderer.domElement);
 
-            // Add lights
-            const ambientLight = new THREE.AmbientLight(0xcccccc, 1.0);
-            scene.add(ambientLight);
-            
-            const pointLight1 = new THREE.PointLight(0xffffff, 0.8, 100);
-            pointLight1.position.set(10, 10, 10);
-            scene.add(pointLight1);
-            
-            const pointLight2 = new THREE.PointLight(0xffffff, 0.5, 100);
-            pointLight2.position.set(-10, -10, -10);
-            scene.add(pointLight2);
+            const ambientLight = new THREE.AmbientLight(0xcccccc, 1.0); scene.add(ambientLight);
+            const pointLight1 = new THREE.PointLight(0xffffff, 0.8, 100); pointLight1.position.set(10, 10, 10); scene.add(pointLight1);
+            const pointLight2 = new THREE.PointLight(0xffffff, 0.5, 100); pointLight2.position.set(-10, -10, -10); scene.add(pointLight2);
 
-            // Create atoms
             const atoms = {};
             atomData.forEach(data => {
                 const atomMesh = createAtomMesh(data.el, data.pos);
                 scene.add(atomMesh);
-                atoms[data.id] = { mesh: atomMesh, pos: data.pos };
-            });
+                atoms[data.id] = { mesh: atomMesh, pos: data.pos.clone(), el: data.el, id: data.id };
 
-            // Create bonds
-            bondData.forEach(data => {
-                const atom1 = atoms[data[0]];
-                const atom2 = atoms[data[1]];
-                const order = data[2] || 1;
-
-                if (atom1 && atom2) {
-                    const bondMesh = createBondMesh(atom1.pos, atom2.pos, order);
-                    scene.add(bondMesh);
+                // ** ADD LABEL if 'label' property exists **
+                if (data.label && data.el === 'C') { // Only label carbons with a 'label' property
+                    const labelSprite = createAtomLabel(data.label, data.pos);
+                    scene.add(labelSprite);
+                    atoms[data.id].labelSprite = labelSprite; // Optional: store ref to label
                 }
             });
 
-            // Add controls
-            const controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-            controls.screenSpacePanning = true;
-            controls.minDistance = 1;
-            controls.maxDistance = 50;
-            controls.target.set(0, 0, 0);
-
-            // Animation loop
-            function animate() {
-                requestAnimationFrame(animate);
-                controls.update();
-                renderer.render(scene, camera);
-            }
-            animate();
-
-            // Handle window resize
-            window.addEventListener('resize', () => {
-                const newWidth = container.clientWidth;
-                const newHeight = container.clientHeight;
-                camera.aspect = newWidth / newHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(newWidth, newHeight);
+            bondData.forEach(data => { /* ... (same bond creation) ... */
+                const atom1 = atoms[data[0]]; const atom2 = atoms[data[1]]; const order = data[2] || 1;
+                if (atom1 && atom2) { const bondMeshGroup = createBondMesh(atom1.pos, atom2.pos, order); if (bondMeshGroup.children.length > 0) scene.add(bondMeshGroup); }
             });
+
+            const controls = new THREE.OrbitControls(camera, renderer.domElement); /* ... (same controls setup) ... */
+            controls.enableDamping = true; controls.dampingFactor = 0.05; controls.screenSpacePanning = true;
+            controls.minDistance = 1; controls.maxDistance = 50; controls.target.set(0, 0, 0);
+
+            viewers[viewerKey] = { /* ... (same viewer storage) ... */
+                camera: camera, controls: controls, scene: scene, renderer: renderer, atoms: atoms,
+                defaultCameraPos: camera.position.clone(), defaultControlsTarget: controls.target.clone()
+            };
+
+            function animate() { requestAnimationFrame(animate); TWEEN.update(); controls.update(); renderer.render(scene, camera); }
+            animate();
+            window.addEventListener('resize', () => { /* ... (same resize handler) ... */
+                const newWidth = canvasWrapper.clientWidth; const newHeight = canvasWrapper.clientHeight;
+                if (newWidth > 0 && newHeight > 0) { camera.aspect = newWidth / newHeight; camera.updateProjectionMatrix(); renderer.setSize(newWidth, newHeight);}
+            }, false);
+            console.log(`${viewerKey} initialized.`);
         }
+
+        // --- View Control Functions (resetView, setNewmanView - same as before) ---
+        function resetView(viewerKey) { /* ... (same) ... */
+            const viewer = viewers[viewerKey]; if (!viewer) return;
+            new TWEEN.Tween(viewer.camera.position).to(viewer.defaultCameraPos, 700).easing(TWEEN.Easing.Quadratic.Out).start();
+            new TWEEN.Tween(viewer.controls.target).to(viewer.defaultControlsTarget, 700).easing(TWEEN.Easing.Quadratic.Out).onUpdate(() => viewer.camera.lookAt(viewer.controls.target)).start();
+            new TWEEN.Tween(viewer.camera.up).to({x:0, y:1, z:0}, 700).easing(TWEEN.Easing.Quadratic.Out).start();
+        }
+        function setNewmanView(viewerKey, frontAtomId, backAtomId) { /* ... (same) ... */
+            const viewer = viewers[viewerKey]; if (!viewer || !viewer.atoms) return;
+            const frontAtom = viewer.atoms[frontAtomId]; const backAtom = viewer.atoms[backAtomId];
+            if (!frontAtom || !backAtom) { console.error("Newman view error: Atom ID not found.", frontAtomId, backAtomId); return; }
+            const direction = new THREE.Vector3().subVectors(backAtom.pos, frontAtom.pos); direction.normalize();
+            const cameraOffset = 0.1;
+            const newCameraPos = new THREE.Vector3().copy(frontAtom.pos).sub(direction.clone().multiplyScalar(cameraOffset));
+            const newTargetPos = backAtom.pos.clone();
+            let upVector = new THREE.Vector3(0, 1, 0); if (Math.abs(direction.dot(upVector)) > 0.95) { upVector.set(1, 0, 0); }
+            const right = new THREE.Vector3().crossVectors(direction, upVector).normalize();
+            const cameraUp = new THREE.Vector3().crossVectors(right, direction).normalize();
+            new TWEEN.Tween(viewer.camera.position).to(newCameraPos, 700).easing(TWEEN.Easing.Quadratic.Out).start();
+            new TWEEN.Tween(viewer.controls.target).to(newTargetPos, 700).easing(TWEEN.Easing.Quadratic.Out).onUpdate(() => viewer.camera.lookAt(viewer.controls.target)).start();
+            new TWEEN.Tween(viewer.camera.up).to({x: cameraUp.x, y: cameraUp.y, z: cameraUp.z}, 700).easing(TWEEN.Easing.Quadratic.Out).start();
+        }
+
 
         // --- Initialize Viewers ---
         document.addEventListener('DOMContentLoaded', () => {
-            // Check if Three.js is loaded
-            if (typeof THREE === 'undefined') {
-                alert("Three.js library not loaded! Please check your internet connection.");
-                return;
+            console.log("DOMContentLoaded event fired.");
+            if (typeof THREE === 'undefined' || typeof THREE.OrbitControls === 'undefined' || typeof TWEEN === 'undefined') {
+                alert("A required library is not loaded! Check console."); console.error("Library loading issue."); return;
             }
-            
-            // Check if OrbitControls is loaded
-            if (typeof THREE.OrbitControls === 'undefined') {
-                alert("OrbitControls not loaded! Please check the script tag for OrbitControls.");
-                return;
-            }
+            console.log("All libraries appear to be loaded.");
 
-            // Initialize viewers
-            initViewer('viewer1_canvas_container', molecule1_atoms, molecule1_bonds);
-            initViewer('viewer2_canvas_container', molecule2_atoms, molecule2_bonds);
+            // **IMPORTANT: Add the 'label' property to the ring carbons in moleculeX_atoms where you want labels**
+            // Example already added in the pasted definitions above for ring carbons c1-c6.
+
+            initViewer('viewer1', 'viewer1_canvas_container', molecule1_atoms, molecule1_bonds);
+            initViewer('viewer2', 'viewer2_canvas_container', molecule2_atoms, molecule2_bonds);
+            console.log("Initialization calls completed.");
         });
     </script>
 </body>
